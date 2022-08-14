@@ -3,21 +3,22 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@babel/types": "^7.18.10",
     "@types/node": "^18.7.3",
     "typescript": "^4.7.4"
   },
   "dependencies": {
-    "acorn": "^8.8.0",
-    "acorn-class-fields": "^1.0.0",
-    "acorn-jsx": "^5.3.2",
-    "acorn-walk": "^8.2.0",
+    "@babel/core": "^7.18.10",
+    "@babel/parser": "^7.18.11",
+    "@babel/traverse": "^7.18.11",
+    "@types/babel__traverse": "^7.18.0",
     "escodegen": "^2.0.0"
   }
 }
