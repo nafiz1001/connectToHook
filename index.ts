@@ -1,7 +1,7 @@
 import fs from "fs"
 import * as parser from "@babel/parser";
 import traverse_, { NodePath, Scope } from "@babel/traverse";
-import { CallExpression, Identifier, Node, ExportDefaultDeclaration } from "@babel/types";
+import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression } from "@babel/types";
 const traverse = (traverse_ as any).default as typeof traverse_;
 
 
@@ -31,18 +31,15 @@ const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: N
 }
 
 const findConnect = (ast: Node) => {
-    const {
-        node: exportDefaultDeclaration,
-        rest: exportDefaultDeclarationRest
-    } = findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration", () => true)
+    const exportDefaultDeclaration = findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration", () => true)
 
-    const connect = findNode<CallExpression>(exportDefaultDeclaration, "CallExpression", (path) => {
+    const connect = findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return (path.node.callee as Identifier)?.name === "connect"
-    }, ...exportDefaultDeclarationRest).node
+    }, ...exportDefaultDeclaration.rest).node
 
-    const rightBeforeConnect = findNode<CallExpression>(exportDefaultDeclaration, "CallExpression", (path) => {
+    const rightBeforeConnect = findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return path.node.callee === connect
-    }, ...exportDefaultDeclarationRest).node
+    }, ...exportDefaultDeclaration.rest).node
 
     const defaultComponent = (rightBeforeConnect.arguments[0] as Identifier)?.name
 
@@ -61,12 +58,28 @@ const findConnect = (ast: Node) => {
 }
 
 const parseFile = (filePath: string) => {
-    const content = fs.readFileSync(filePath)
-    const ast = parser.parse(content.toString(), { sourceType: "module", plugins: ["jsx"] });
+    const content = fs.readFileSync(filePath).toString()
+    const ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
 
     const { rightBeforeConnect, defaultComponent, mapStateToProps, actionCreators } = findConnect(ast)
 
-    console.log(`connect(${mapStateToProps}, ${actionCreators})(${defaultComponent})`);
+    const mapStateToPropsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
+        return (path.node.declarations[0].id as Identifier)?.name === mapStateToProps
+    })
+
+    const propsToState = ((mapStateToPropsDeclaration.node.declarations[0].init as ArrowFunctionExpression).body as ObjectExpression).properties.map((prop_) => {
+        const prop = prop_ as ObjectProperty
+        const key = (prop.key as Identifier).name
+        const valueExpression = (prop.value as MemberExpression)
+        const value = content.substring(valueExpression.start as number, valueExpression.end as number)
+
+        return [key, value]
+    })
+
+    propsToState.forEach(([k, v]) => {
+        console.log(`const ${k} = useSelector((state) => ${v})`);
+    })
+
 }
 
 const filePaths = process.argv.slice(2)
