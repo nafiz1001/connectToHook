@@ -67,8 +67,7 @@ const parseFile = (filePath: string) => {
         return (path.node.declarations[0].id as Identifier)?.name === mapStateToProps
     })
 
-    const propsToState = ((mapStateToPropsDeclaration.node.declarations[0].init as ArrowFunctionExpression).body as ObjectExpression).properties.map((prop_) => {
-        const prop = prop_ as ObjectProperty
+    const propsToState = (((mapStateToPropsDeclaration.node.declarations[0].init as ArrowFunctionExpression).body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
         const key = (prop.key as Identifier).name
         const valueExpression = (prop.value as MemberExpression)
         const value = content.substring(valueExpression.start as number, valueExpression.end as number)
@@ -80,6 +79,18 @@ const parseFile = (filePath: string) => {
         console.log(`const ${k} = useSelector((state) => ${v})`);
     })
 
+    const actionCreatorsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
+        return (path.node.declarations[0].id as Identifier)?.name === actionCreators
+    })
+
+    const actions = ((actionCreatorsDeclaration.node.declarations[0].init as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
+        const key = (prop.key as Identifier).name
+        return key
+    })
+
+    actions.forEach((name) => {
+        console.log(`dispatch(${name}())`);
+    })
 }
 
 const filePaths = process.argv.slice(2)
