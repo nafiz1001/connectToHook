@@ -1,7 +1,7 @@
 import fs from "fs"
 import * as parser from "@babel/parser";
 import traverse_, { NodePath, Scope } from "@babel/traverse";
-import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression } from "@babel/types";
+import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression, ObjectPattern, BlockStatement } from "@babel/types";
 const traverse = (traverse_ as any).default as typeof traverse_;
 
 
@@ -91,6 +91,17 @@ const parseFile = (filePath: string) => {
     actions.forEach((name) => {
         console.log(`dispatch(${name}())`);
     })
+
+    const defaultComponentDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
+        return (path.node.declarations[0].id as Identifier)?.name === defaultComponent
+    })
+
+    const defaultComponentFunction = defaultComponentDeclaration.node.declarations[0].init as ArrowFunctionExpression
+    const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
+    const defaultComponentBody = defaultComponentFunction.body as BlockStatement
+
+    console.log(content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number));
+    
 }
 
 const filePaths = process.argv.slice(2)
