@@ -100,8 +100,13 @@ const parseFile = (filePath: string) => {
     const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
     const defaultComponentBody = defaultComponentFunction.body as BlockStatement
 
-    console.log(content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number));
-    
+    const skipLines = [mapStateToPropsDeclaration.node, actionCreatorsDeclaration.node].map((node) => {
+	return [node.start, node.end] as number[]
+    }).sort((a, b) => a[0] - b[0])
+
+    console.log(content.substring(0, skipLines[0][0]))
+    console.log(content.substring(skipLines[0][1], skipLines[1][0]))
+    console.log(content.substring(skipLines[1][1]))
 }
 
 const filePaths = process.argv.slice(2)
