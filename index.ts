@@ -5,7 +5,7 @@ import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDec
 const traverse = (traverse_ as any).default as typeof traverse_;
 
 
-const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: NodePath<T>) => boolean, scope?: Scope | undefined, state?: T | undefined, parentPath?: NodePath | undefined) => {
+const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: NodePath<T>) => boolean = () => true, scope?: Scope | undefined, state?: T | undefined, parentPath?: NodePath | undefined) => {
     let path: NodePath<T> | undefined;
 
     traverse(
@@ -31,7 +31,7 @@ const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: N
 }
 
 const findConnect = (ast: Node) => {
-    const exportDefaultDeclaration = findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration", () => true)
+    const exportDefaultDeclaration = findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration")
 
     const connect = findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return (path.node.callee as Identifier)?.name === "connect"
