@@ -84,10 +84,6 @@ const parseFile = (filePath: string) => {
         return key
     })
 
-    actions.forEach((name) => {
-        console.log(`dispatch(${name}())`);
-    })
-
     const defaultComponentDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
         return (path.node.declarations[0].id as Identifier)?.name === defaultComponent
     })
@@ -107,13 +103,19 @@ const parseFile = (filePath: string) => {
 	return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
     }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
 
-    const baseIndentation = defaultComponentBody.body[0].loc?.start.column as number
+    const baseIndentation = " ".repeat(defaultComponentBody.body[0].loc?.start.column as number)
 
     propsToState.forEach(([k, v]) => {
-        console.log(`${" ".repeat(baseIndentation)}const ${k} = useSelector((state) => ${v})`);
+        console.log(`${baseIndentation}const ${k} = useSelector((state) => ${v})`);
     })
 
-    console.log(`}\n${content.substring(defaultComponentBody.end as number)}`)
+    console.log(`${baseIndentation}const dispatch = useDispatch()`)
+
+    actions.forEach((name) => {
+        console.log(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(..args)), [dispatch])`);
+    })
+
+    console.log(`}${content.substring(defaultComponentBody.end as number)}`)
 }
 
 const filePaths = process.argv.slice(2)
