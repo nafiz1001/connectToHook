@@ -104,9 +104,13 @@ const parseFile = (filePath: string) => {
 	return [node.start, node.end] as number[]
     }).sort((a, b) => a[0] - b[0])
 
-    console.log(content.substring(0, skipLines[0][0]))
-    console.log(content.substring(skipLines[0][1], skipLines[1][0]))
-    console.log(content.substring(skipLines[1][1]))
+    // console.log(content.substring(0, skipLines[0][0]))
+    // console.log(content.substring(skipLines[0][1], skipLines[1][0]))
+    // console.log(content.substring(skipLines[1][1], defaultComponentParams.start as number - 1))
+    console.log(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
+	return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
+    }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
+    console.log(`}\n${content.substring(defaultComponentBody.end as number)}`)
 }
 
 const filePaths = process.argv.slice(2)
