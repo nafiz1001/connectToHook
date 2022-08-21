@@ -75,10 +75,6 @@ const parseFile = (filePath: string) => {
         return [key, value]
     })
 
-    propsToState.forEach(([k, v]) => {
-        console.log(`const ${k} = useSelector((state) => ${v})`);
-    })
-
     const actionCreatorsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
         return (path.node.declarations[0].id as Identifier)?.name === actionCreators
     })
@@ -110,6 +106,13 @@ const parseFile = (filePath: string) => {
     console.log(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
 	return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
     }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
+
+    const baseIndentation = defaultComponentBody.body[0].loc?.start.column as number
+
+    propsToState.forEach(([k, v]) => {
+        console.log(`${" ".repeat(baseIndentation)}const ${k} = useSelector((state) => ${v})`);
+    })
+
     console.log(`}\n${content.substring(defaultComponentBody.end as number)}`)
 }
 
