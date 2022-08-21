@@ -115,7 +115,13 @@ const parseFile = (filePath: string) => {
         console.log(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(..args)), [dispatch])`);
     })
 
-    console.log(`}${content.substring(defaultComponentBody.end as number)}`)
+    console.log()
+
+    console.log(`${baseIndentation}${actions.reduce((prev, curr) => {
+	return prev.replace(curr, `dispatch${curr[0].toUpperCase()}${curr.substring(1)}`)
+    }, content.substring(defaultComponentBody.body[0].start as number, defaultComponentBody.end as number))}`)
+
+    console.log(content.substring(defaultComponentBody.end as number))
 }
 
 const filePaths = process.argv.slice(2)
