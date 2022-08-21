@@ -121,7 +121,7 @@ const parseFile = (filePath: string) => {
 	return prev.replace(curr, `dispatch${curr[0].toUpperCase()}${curr.substring(1)}`)
     }, content.substring(defaultComponentBody.body[0].start as number, defaultComponentBody.end as number))}`)
 
-    console.log(content.substring(defaultComponentBody.end as number))
+    console.log(`${content.substring(defaultComponentBody.end as number, rightBeforeConnect.start as number)}${defaultComponent}${content.substring(rightBeforeConnect.end as number)}`)
 }
 
 const filePaths = process.argv.slice(2)
