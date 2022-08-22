@@ -23,23 +23,27 @@ const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: N
         parentPath,
     )
 
-    if (!path) {
-        throw `${target} not found within lines ${ast.start}-${ast.end}`
-    }
+    return path ? { path, node: path.node, rest: [path.scope, path.state, path.parentPath] } : undefined
+}
 
-    return { path, node: path.node, rest: [path.scope, path.state, path.parentPath] }
+const throwUndefined = <T>(o: T | undefined) => {
+    if (o) {
+        return o
+    } else {
+        throw new Error("undefined error")
+    }
 }
 
 const findConnect = (ast: Node) => {
-    const exportDefaultDeclaration = findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration")
+    const exportDefaultDeclaration = throwUndefined(findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration"))
 
-    const connect = findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
+    const connect = throwUndefined(findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return (path.node.callee as Identifier)?.name === "connect"
-    }, ...exportDefaultDeclaration.rest).node
+    }, ...exportDefaultDeclaration.rest)).node
 
-    const rightBeforeConnect = findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
+    const rightBeforeConnect = throwUndefined(findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return path.node.callee === connect
-    }, ...exportDefaultDeclaration.rest).node
+    }, ...exportDefaultDeclaration.rest)).node
 
     const defaultComponent = (rightBeforeConnect.arguments[0] as Identifier)?.name
 
@@ -47,13 +51,13 @@ const findConnect = (ast: Node) => {
         throw `${connect.arguments.length} > 2`
     }
 
-    const [mapStateToPropsNode, actionCreatorsNode] = connect.arguments as Identifier[]
+    const [mapStateToPropsNode, actionCreatorsNode] = connect.arguments as (Identifier | undefined)[]
 
     return {
         rightBeforeConnect,
         defaultComponent,
-        mapStateToProps: mapStateToPropsNode?.name,
-        actionCreators: actionCreatorsNode?.name,
+        mapStateToPropsName: mapStateToPropsNode?.name,
+        actionCreatorsName: actionCreatorsNode?.name,
     }
 }
 
@@ -61,34 +65,34 @@ const parseFile = (filePath: string) => {
     const content = fs.readFileSync(filePath).toString()
     const ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
 
-    const { rightBeforeConnect, defaultComponent, mapStateToProps, actionCreators } = findConnect(ast)
+    const { rightBeforeConnect, defaultComponent, mapStateToPropsName, actionCreatorsName } = findConnect(ast)
 
     const mapStateToPropsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
-        return (path.node.declarations[0].id as Identifier)?.name === mapStateToProps
+        return (path.node.declarations[0].id as Identifier)?.name === mapStateToPropsName
     })
 
     // key value pairs in mapStateProps
-    const propsToState = (((mapStateToPropsDeclaration.node.declarations[0].init as ArrowFunctionExpression).body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
+    const propsToState = mapStateToPropsDeclaration ? (((mapStateToPropsDeclaration.node.declarations[0].init as ArrowFunctionExpression).body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
         const key = (prop.key as Identifier).name
         const valueExpression = (prop.value as MemberExpression)
         const value = content.substring(valueExpression.start as number, valueExpression.end as number)
 
         return [key, value]
-    })
+    }) : []
 
     const actionCreatorsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
-        return (path.node.declarations[0].id as Identifier)?.name === actionCreators
+        return (path.node.declarations[0].id as Identifier)?.name === actionCreatorsName
     })
 
     // all the actions from redux
-    const actions = ((actionCreatorsDeclaration.node.declarations[0].init as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
+    const actions = actionCreatorsDeclaration ? ((actionCreatorsDeclaration.node.declarations[0].init as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
         const key = (prop.key as Identifier).name
         return key
-    })
+    }) : []
 
-    const defaultComponentDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
+    const defaultComponentDeclaration = throwUndefined(findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
         return (path.node.declarations[0].id as Identifier)?.name === defaultComponent
-    })
+    }))
 
     console.log('import { useDispatch, useSelector } from "react-redux";')
 
@@ -98,14 +102,19 @@ const parseFile = (filePath: string) => {
 
     // regions of lines to skip including mapStateProps and actionCreators
     // I don't know which is first, so I sort
-    const skipLines = [mapStateToPropsDeclaration.node, actionCreatorsDeclaration.node].map((node) => {
+    const skipLines = [mapStateToPropsDeclaration?.node, actionCreatorsDeclaration?.node].filter((x) => x !== undefined).map((x) => x as VariableDeclaration).map((node) => {
 	return [node.start, node.end] as number[]
     }).sort((a, b) => a[0] - b[0])
 
     // print every from top to the default component except mapStateProps and actionCreators
-    console.log(content.substring(0, skipLines[0][0]))
-    console.log(content.substring(skipLines[0][1], skipLines[1][0]))
-    console.log(content.substring(skipLines[1][1], defaultComponentParams.start as number - 1))
+    if (skipLines.length == 2) {
+        console.log(content.substring(0, skipLines[0][0]))
+        console.log(content.substring(skipLines[0][1], skipLines[1][0]))
+        console.log(content.substring(skipLines[1][1], defaultComponentDeclaration.node.start as number - 1))
+    } else if (skipLines.length == 1) {
+        console.log(content.substring(0, skipLines[0][0]))
+        console.log(content.substring(skipLines[0][1], defaultComponentDeclaration.node.start as number - 1))
+    }
 
     // print default component signature
     console.log(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
