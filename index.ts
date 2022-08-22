@@ -61,8 +61,7 @@ const findConnect = (ast: Node) => {
     }
 }
 
-const parseFile = (filePath: string) => {
-    const content = fs.readFileSync(filePath).toString()
+const parseContent = (content: string) => {
     const ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
     const result = []
 
@@ -151,4 +150,6 @@ const parseFile = (filePath: string) => {
 }
 
 const filePaths = process.argv.slice(2)
-console.log(parseFile(filePaths[0]))
+
+const content = fs.readFileSync(filePaths[0]).toString()
+console.log(parseContent(content))
