@@ -64,6 +64,7 @@ const findConnect = (ast: Node) => {
 const parseFile = (filePath: string) => {
     const content = fs.readFileSync(filePath).toString()
     const ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
+    const result = []
 
     const { rightBeforeConnect, defaultComponent, mapStateToPropsName, actionCreatorsName } = findConnect(ast)
 
@@ -94,7 +95,7 @@ const parseFile = (filePath: string) => {
         return (path.node.declarations[0].id as Identifier)?.name === defaultComponent
     }))
 
-    console.log('import { useDispatch, useSelector } from "react-redux";')
+    result.push('import { useDispatch, useSelector } from "react-redux";')
 
     const defaultComponentFunction = defaultComponentDeclaration.node.declarations[0].init as ArrowFunctionExpression
     const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
@@ -108,16 +109,16 @@ const parseFile = (filePath: string) => {
 
     // print every from top to the default component except mapStateProps and actionCreators
     if (skipLines.length == 2) {
-        console.log(content.substring(0, skipLines[0][0]))
-        console.log(content.substring(skipLines[0][1], skipLines[1][0]))
-        console.log(content.substring(skipLines[1][1], defaultComponentDeclaration.node.start as number - 1))
+        result.push(content.substring(0, skipLines[0][0]))
+        result.push(content.substring(skipLines[0][1], skipLines[1][0]))
+        result.push(content.substring(skipLines[1][1], defaultComponentDeclaration.node.start as number - 1))
     } else if (skipLines.length == 1) {
-        console.log(content.substring(0, skipLines[0][0]))
-        console.log(content.substring(skipLines[0][1], defaultComponentDeclaration.node.start as number - 1))
+        result.push(content.substring(0, skipLines[0][0]))
+        result.push(content.substring(skipLines[0][1], defaultComponentDeclaration.node.start as number - 1))
     }
 
     // print default component signature
-    console.log(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
+    result.push(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
 	return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
     }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
 
@@ -126,26 +127,28 @@ const parseFile = (filePath: string) => {
 
     // print selectors
     propsToState.forEach(([k, v]) => {
-        console.log(`${baseIndentation}const ${k} = useSelector((state) => ${v})`);
+        result.push(`${baseIndentation}const ${k} = useSelector((state) => ${v})`);
     })
 
     // print dispatchers
-    console.log(`${baseIndentation}const dispatch = useDispatch()`)
+    result.push(`${baseIndentation}const dispatch = useDispatch()`)
     actions.forEach((name) => {
-        console.log(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(..args)), [dispatch])`);
+        result.push(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(..args)), [dispatch])`);
     })
 
     // print the rest of the body while replacing each actions with a dispatched version
 
-    console.log()
+    result.push("")
 
-    console.log(`${baseIndentation}${actions.reduce((prev, curr) => {
+    result.push(`${baseIndentation}${actions.reduce((prev, curr) => {
 	return prev.replace(curr, `dispatch${curr[0].toUpperCase()}${curr.substring(1)}`)
     }, content.substring(defaultComponentBody.body[0].start as number, defaultComponentBody.end as number))}`)
 
     // print everything after the default component declaration with connect remove
-    console.log(`${content.substring(defaultComponentBody.end as number, rightBeforeConnect.start as number)}${defaultComponent}${content.substring(rightBeforeConnect.end as number)}`)
+    result.push(`${content.substring(defaultComponentBody.end as number, rightBeforeConnect.start as number)}${defaultComponent}${content.substring(rightBeforeConnect.end as number)}`)
+
+    return result.join("\n")
 }
 
 const filePaths = process.argv.slice(2)
-parseFile(filePaths[0])
+console.log(parseFile(filePaths[0]))
