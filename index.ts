@@ -104,7 +104,7 @@ const parseFile = (filePath: string) => {
     // regions of lines to skip including mapStateProps and actionCreators
     // I don't know which is first, so I sort
     const skipLines = [mapStateToPropsDeclaration?.node, actionCreatorsDeclaration?.node].filter((x) => x !== undefined).map((x) => x as VariableDeclaration).map((node) => {
-	return [node.start, node.end] as number[]
+        return [node.start, node.end] as number[]
     }).sort((a, b) => a[0] - b[0])
 
     // print every from top to the default component except mapStateProps and actionCreators
@@ -119,7 +119,7 @@ const parseFile = (filePath: string) => {
 
     // print default component signature
     result.push(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
-	return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
+        return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
     }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
 
     // indentation to use for the function body
@@ -141,7 +141,7 @@ const parseFile = (filePath: string) => {
     result.push("")
 
     result.push(`${baseIndentation}${actions.reduce((prev, curr) => {
-	return prev.replace(curr, `dispatch${curr[0].toUpperCase()}${curr.substring(1)}`)
+        return prev.replace(curr, `dispatch${curr[0].toUpperCase()}${curr.substring(1)}`)
     }, content.substring(defaultComponentBody.body[0].start as number, defaultComponentBody.end as number))}`)
 
     // print everything after the default component declaration with connect remove
