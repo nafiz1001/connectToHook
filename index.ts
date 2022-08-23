@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import * as parser from "@babel/parser";
 import traverse_, { NodePath, Scope } from "@babel/traverse";
-import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression, ObjectPattern, BlockStatement } from "@babel/types";
+import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression, ObjectPattern, BlockStatement, FunctionDeclaration } from "@babel/types";
 const traverse = (traverse_ as any).default as typeof traverse_;
 
 
@@ -24,6 +24,23 @@ const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: N
     )
 
     return path ? { path, node: path.node, rest: [path.scope, path.state, path.parentPath] } : undefined
+}
+
+
+const findFunction = (ast: Node, name: string, ...rest: any[]) => {
+    const variableDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
+        return (path.node.declarations[0].id as Identifier)?.name === name
+    })
+
+    if (variableDeclaration) {
+        const arrowFunction = variableDeclaration.node.declarations[0].init as ArrowFunctionExpression | undefined
+        return arrowFunction && { declaration: variableDeclaration, params: arrowFunction.params, body: arrowFunction.body }
+    } else {
+        const functionDeclaration = findNode<FunctionDeclaration>(ast, "VariableDeclaration", (path) => {
+            return (path.node.id as Identifier)?.name === name
+        })
+        return functionDeclaration && { declaration: functionDeclaration , params: functionDeclaration?.node.params, body: functionDeclaration.node.body }
+    }
 }
 
 const throwUndefined = <T>(o: T | undefined) => {
