@@ -105,13 +105,11 @@ const parseContent = (content: string) => {
         return key
     }) : []
 
-    const defaultComponentDeclaration = throwUndefined(findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
-        return (path.node.declarations[0].id as Identifier)?.name === defaultComponent
-    }))
+    const defaultComponentFunction = throwUndefined(findFunction(ast, defaultComponent))
 
     result.push('import { useDispatch, useSelector } from "react-redux";')
 
-    const defaultComponentFunction = defaultComponentDeclaration.node.declarations[0].init as ArrowFunctionExpression
+    const defaultComponentDeclaration = defaultComponentFunction.declaration
     const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
     const defaultComponentBody = defaultComponentFunction.body as BlockStatement
 
