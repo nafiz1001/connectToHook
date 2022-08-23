@@ -39,7 +39,7 @@ const findFunction = (ast: Node, name: string) => {
         const functionDeclaration = findNode<FunctionDeclaration>(ast, "VariableDeclaration", (path) => {
             return (path.node.id as Identifier)?.name === name
         })
-        return functionDeclaration && { declaration: functionDeclaration , params: functionDeclaration?.node.params, body: functionDeclaration.node.body }
+        return functionDeclaration && { declaration: functionDeclaration, params: functionDeclaration?.node.params, body: functionDeclaration.node.body }
     }
 }
 
