@@ -156,12 +156,12 @@ console.log(filePaths)
 const results = filePaths.map(async (filePath) => {
     const buffer = await fs.readFile(filePath)
     try {
-	const result = parseContent(buffer.toString())
-	await fs.writeFile(filePath, result)
-	console.log(`${filePath} COMPLETE`)
+        const result = parseContent(buffer.toString())
+        await fs.writeFile(filePath, result)
+        console.log(`${filePath} COMPLETE`)
     } catch (e) {
-	console.log(`${filePath} FAILED: ${(e as Error).stack}`)
-	throw e
+        console.log(`${filePath} FAILED: ${(e as Error).stack}`)
+        throw e
     }
 })
 
