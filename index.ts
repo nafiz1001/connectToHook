@@ -81,16 +81,16 @@ const findConnect = (ast: Node) => {
 
 const findMapStateProps = (content: string, ast: Node, mapStateToPropsName: string) => {
     const mapStateToPropsFunction = findFunction(ast, mapStateToPropsName)
-    const propsToState = mapStateToPropsFunction ? ((mapStateToPropsFunction.body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
+    const propsToState = mapStateToPropsFunction ? Object.fromEntries(((mapStateToPropsFunction.body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
         const key = (prop.key as Identifier).name
         const valueExpression = (prop.value as MemberExpression)
         const value = content.substring(valueExpression.start as number, valueExpression.end as number)
 
         return [key, value]
-    }) : []
+    })) : {}
 
     return {
-        node: mapStateToPropsFunction,
+        node: mapStateToPropsFunction?.declaration.node,
         propsToState,
     }
 }
@@ -113,23 +113,26 @@ const findActionCreators = (content: string, ast: Node, actionCreatorsName: stri
         : []
 
     return {
-        node: actionCreatorsDeclaration,
+        node: actionCreatorsDeclaration?.node,
         actions,
     }
 }
 
 const findDefaultComponent = (content: string, ast: Node, defaultComponentName: string) => {
     const defaultComponentFunction = findFunction(ast, defaultComponentName)
-    if (defaultComponentFunction) {
-        const defaultComponentDeclaration = defaultComponentFunction.declaration
-        const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
-        const defaultComponentBody = defaultComponentFunction.body as BlockStatement
 
-        return {
-            defaultComponentDeclaration,
-            defaultComponentParams,
-            defaultComponentBody,
-        }
+    if (!defaultComponentFunction) {
+        throw new Error(`defaultComponentFunction is ${defaultComponentFunction}`)
+    }
+
+    const defaultComponentDeclaration = defaultComponentFunction.declaration
+    const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
+    const defaultComponentBody = defaultComponentFunction.body
+
+    return {
+        defaultComponentDeclaration,
+        defaultComponentParams,
+        defaultComponentBody,
     }
 }
 
@@ -143,87 +146,52 @@ const replaceNodeContent = (content: string, node: Node, replacement: string) =>
 }
 
 const parseContent = (content: string) => {
-    const ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
-    const result = []
+    let ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
+    let propsToState: { [_: string]: string } = {};
+    let actions: Set<string> = new Set<string>();
 
-    const { rightBeforeConnect, defaultComponentName, mapStateToPropsName, actionCreatorsName } = findConnect(ast)
+    const {
+        rightBeforeConnect,
+        defaultComponentName,
+        mapStateToPropsName,
+        actionCreatorsName,
+    } = findConnect(ast);
 
-    const mapStateToPropsFunction = mapStateToPropsName !== undefined ? findFunction(ast, mapStateToPropsName) : undefined
+    ({ ast, content } = replaceNodeContent(content, rightBeforeConnect, defaultComponentName));
 
-    // key value pairs in mapStateProps
-    const propsToState = mapStateToPropsFunction ? ((mapStateToPropsFunction.body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
-        const key = (prop.key as Identifier).name
-        const valueExpression = (prop.value as MemberExpression)
-        const value = content.substring(valueExpression.start as number, valueExpression.end as number)
+    if (mapStateToPropsName) {
+        let mapStateToPropsDeclaration: Node | undefined;
+        ({ node: mapStateToPropsDeclaration, propsToState } = findMapStateProps(content, ast, mapStateToPropsName));
 
-        return [key, value]
-    }) : []
-
-    const actionCreatorsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
-        return (path.node.declarations[0].id as Identifier)?.name === actionCreatorsName
-    })
-
-    // all the actions from redux
-    const actions = actionCreatorsDeclaration ? ((actionCreatorsDeclaration.node.declarations[0].init as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
-        const key = (prop.key as Identifier).name
-        return key
-    }) : []
-
-    const defaultComponentFunction = throwUndefined(findFunction(ast, defaultComponentName))
-
-    result.push('import { useDispatch, useSelector } from "react-redux";')
-
-    const defaultComponentDeclaration = defaultComponentFunction.declaration
-    const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
-    const defaultComponentBody = defaultComponentFunction.body as BlockStatement
-
-    // regions of lines to skip including mapStateProps and actionCreators
-    // I don't know which is first, so I sort
-    const skipLines = [mapStateToPropsFunction?.declaration.node, actionCreatorsDeclaration?.node].filter((x) => x).map((x) => x as VariableDeclaration).map((node) => {
-        return [node.start, node.end] as number[]
-    }).sort((a, b) => a[0] - b[0])
-
-    // print every from top to the default component except mapStateProps and actionCreators
-    if (skipLines.length == 2) {
-        result.push(content.substring(0, skipLines[0][0]))
-        result.push(content.substring(skipLines[0][1], skipLines[1][0]))
-        result.push(content.substring(skipLines[1][1], defaultComponentDeclaration.node.start as number - 1))
-    } else if (skipLines.length == 1) {
-        result.push(content.substring(0, skipLines[0][0]))
-        result.push(content.substring(skipLines[0][1], defaultComponentDeclaration.node.start as number - 1))
+        if (mapStateToPropsDeclaration) {
+            ({ ast, content } = replaceNodeContent(content, mapStateToPropsDeclaration, ""));
+        }
     }
 
-    // print default component signature
-    result.push(`const ${defaultComponentName} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
-        return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
-    }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
+    if (actionCreatorsName) {
+        let actionCreatorsDeclaration: Node | undefined;
+        let actionsArray: string[] = [];
+        ({ node: actionCreatorsDeclaration, actions: actionsArray } = findActionCreators(content, ast, actionCreatorsName));
+        actions = new Set(actionsArray)
 
-    // indentation to use for the function body
-    const baseIndentation = " ".repeat(defaultComponentBody.body[0].loc?.start.column as number)
+        if (actionCreatorsDeclaration) {
+            ({ ast, content } = replaceNodeContent(content, actionCreatorsDeclaration, ""));
+        }
+    }
 
-    // print selectors
-    propsToState.forEach(([k, v]) => {
-        result.push(`${baseIndentation}const ${k} = useSelector((state) => ${v})`);
-    })
+    const {
+        defaultComponentDeclaration,
+        defaultComponentParams,
+        defaultComponentBody,
+    } = findDefaultComponent(content, ast, defaultComponentName);
 
-    // print dispatchers
-    result.push(`${baseIndentation}const dispatch = useDispatch()`)
-    actions.forEach((name) => {
-        result.push(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(...args)), [dispatch])`);
-    })
+    const paramReplacement = `{ ${(defaultComponentParams.properties as ObjectProperty[]).map((prop) => {
+        return { key: (prop.key as Identifier).name, value: prop.value }
+    }).filter(({ key }) => {
+        return !actions.has(key)
+    }).map(({ value }) => value).join(", ")} }`;
 
-    // print the rest of the body while replacing each actions with a dispatched version
-
-    result.push("")
-
-    result.push(`${baseIndentation}${actions.reduce((prev, curr) => {
-        return prev.replace(curr, `dispatch${curr[0].toUpperCase()}${curr.substring(1)}`)
-    }, content.substring(defaultComponentBody.body[0].start as number, defaultComponentBody.end as number))}`)
-
-    // print everything after the default component declaration with connect remove
-    result.push(`${content.substring(defaultComponentBody.end as number, rightBeforeConnect.start as number)}${defaultComponentName}${content.substring(rightBeforeConnect.end as number)}`)
-
-    return result.join("\n")
+    ({ ast, content } = replaceNodeContent(content, defaultComponentParams, paramReplacement));
 }
 
 const filePaths = process.argv.slice(2)
