@@ -27,6 +27,27 @@ const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: N
     return path ? { path, node: path.node, rest: [path.scope, path.state, path.parentPath] } : undefined
 }
 
+const findNodes = <T = Node>(ast: Node, target: Node["type"], condition: (path: NodePath<T>) => boolean = () => true, scope?: Scope | undefined, state?: T | undefined, parentPath?: NodePath | undefined) => {
+    let paths: NodePath<T>[] = [];
+
+    traverse(
+        ast,
+        {
+            [target](_path: NodePath<T>) {
+                if (condition(_path)) {
+                    paths.push(_path)
+                    _path.stop()
+                }
+            }
+        },
+        scope,
+        state,
+        parentPath,
+    )
+
+    return paths.map((path) => ({ path, node: path.node, rest: [path.scope, path.state, path.parentPath] }))
+}
+
 
 const findFunction = (ast: Node, name: string) => {
     const variableDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
