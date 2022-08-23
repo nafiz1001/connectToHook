@@ -27,7 +27,7 @@ const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: N
 }
 
 
-const findFunction = (ast: Node, name: string, ...rest: any[]) => {
+const findFunction = (ast: Node, name: string) => {
     const variableDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
         return (path.node.declarations[0].id as Identifier)?.name === name
     })
@@ -84,12 +84,10 @@ const parseContent = (content: string) => {
 
     const { rightBeforeConnect, defaultComponent, mapStateToPropsName, actionCreatorsName } = findConnect(ast)
 
-    const mapStateToPropsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
-        return (path.node.declarations[0].id as Identifier)?.name === mapStateToPropsName
-    })
+    const mapStateToPropsFunction = mapStateToPropsName !== undefined ? findFunction(ast, mapStateToPropsName) : undefined
 
     // key value pairs in mapStateProps
-    const propsToState = mapStateToPropsDeclaration ? (((mapStateToPropsDeclaration.node.declarations[0].init as ArrowFunctionExpression).body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
+    const propsToState = mapStateToPropsFunction ? ((mapStateToPropsFunction.body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
         const key = (prop.key as Identifier).name
         const valueExpression = (prop.value as MemberExpression)
         const value = content.substring(valueExpression.start as number, valueExpression.end as number)
@@ -119,7 +117,7 @@ const parseContent = (content: string) => {
 
     // regions of lines to skip including mapStateProps and actionCreators
     // I don't know which is first, so I sort
-    const skipLines = [mapStateToPropsDeclaration?.node, actionCreatorsDeclaration?.node].filter((x) => x).map((x) => x as VariableDeclaration).map((node) => {
+    const skipLines = [mapStateToPropsFunction?.declaration.node, actionCreatorsDeclaration?.node].filter((x) => x).map((x) => x as VariableDeclaration).map((node) => {
         return [node.start, node.end] as number[]
     }).sort((a, b) => a[0] - b[0])
 
