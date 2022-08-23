@@ -62,7 +62,7 @@ const findConnect = (ast: Node) => {
         return path.node.callee === connect
     }, ...exportDefaultDeclaration.rest)).node
 
-    const defaultComponent = (rightBeforeConnect.arguments[0] as Identifier)?.name
+    const defaultComponentName = (rightBeforeConnect.arguments[0] as Identifier)?.name
 
     if (connect.arguments.length > 2) {
         throw `${connect.arguments.length} > 2`
@@ -72,7 +72,7 @@ const findConnect = (ast: Node) => {
 
     return {
         rightBeforeConnect,
-        defaultComponent,
+        defaultComponentName,
         mapStateToPropsName: mapStateToPropsNode?.name,
         actionCreatorsName: actionCreatorsNode?.name,
     }
@@ -82,7 +82,7 @@ const parseContent = (content: string) => {
     const ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
     const result = []
 
-    const { rightBeforeConnect, defaultComponent, mapStateToPropsName, actionCreatorsName } = findConnect(ast)
+    const { rightBeforeConnect, defaultComponentName, mapStateToPropsName, actionCreatorsName } = findConnect(ast)
 
     const mapStateToPropsFunction = mapStateToPropsName !== undefined ? findFunction(ast, mapStateToPropsName) : undefined
 
@@ -105,7 +105,7 @@ const parseContent = (content: string) => {
         return key
     }) : []
 
-    const defaultComponentFunction = throwUndefined(findFunction(ast, defaultComponent))
+    const defaultComponentFunction = throwUndefined(findFunction(ast, defaultComponentName))
 
     result.push('import { useDispatch, useSelector } from "react-redux";')
 
@@ -130,7 +130,7 @@ const parseContent = (content: string) => {
     }
 
     // print default component signature
-    result.push(`const ${defaultComponent} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
+    result.push(`const ${defaultComponentName} = (${[...actions, ...propsToState.map(([k, _]) => k)].reduce((prev, curr) => {
         return prev.replace(RegExp(`[ \n]*${curr},?[ \n]*`), "")
     }, content.substring(defaultComponentParams.start as number, defaultComponentParams.end as number))}) => {`)
 
@@ -157,7 +157,7 @@ const parseContent = (content: string) => {
     }, content.substring(defaultComponentBody.body[0].start as number, defaultComponentBody.end as number))}`)
 
     // print everything after the default component declaration with connect remove
-    result.push(`${content.substring(defaultComponentBody.end as number, rightBeforeConnect.start as number)}${defaultComponent}${content.substring(rightBeforeConnect.end as number)}`)
+    result.push(`${content.substring(defaultComponentBody.end as number, rightBeforeConnect.start as number)}${defaultComponentName}${content.substring(rightBeforeConnect.end as number)}`)
 
     return result.join("\n")
 }
