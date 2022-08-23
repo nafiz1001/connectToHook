@@ -132,7 +132,7 @@ const parseContent = (content: string) => {
     // print dispatchers
     result.push(`${baseIndentation}const dispatch = useDispatch()`)
     actions.forEach((name) => {
-        result.push(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(..args)), [dispatch])`);
+        result.push(`${baseIndentation}const dispatch${name[0].toUpperCase()}${name.substring(1)} = useCallback((...args) => dispatch(${name}(...args)), [dispatch])`);
     })
 
     // print the rest of the body while replacing each actions with a dispatched version
