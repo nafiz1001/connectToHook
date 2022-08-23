@@ -4,6 +4,7 @@ import traverse_, { NodePath, Scope } from "@babel/traverse";
 import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression, ObjectPattern, BlockStatement, FunctionDeclaration } from "@babel/types";
 const traverse = (traverse_ as any).default as typeof traverse_;
 
+const parse = (content: string) => parser.parse(content, { sourceType: "module", plugins: ["jsx"] })
 
 const findNode = <T = Node>(ast: Node, target: Node["type"], condition: (path: NodePath<T>) => boolean = () => true, scope?: Scope | undefined, state?: T | undefined, parentPath?: NodePath | undefined) => {
     let path: NodePath<T> | undefined;
@@ -75,6 +76,69 @@ const findConnect = (ast: Node) => {
         defaultComponentName,
         mapStateToPropsName: mapStateToPropsNode?.name,
         actionCreatorsName: actionCreatorsNode?.name,
+    }
+}
+
+const findMapStateProps = (content: string, ast: Node, mapStateToPropsName: string) => {
+    const mapStateToPropsFunction = findFunction(ast, mapStateToPropsName)
+    const propsToState = mapStateToPropsFunction ? ((mapStateToPropsFunction.body as ObjectExpression).properties as ObjectProperty[]).map((prop) => {
+        const key = (prop.key as Identifier).name
+        const valueExpression = (prop.value as MemberExpression)
+        const value = content.substring(valueExpression.start as number, valueExpression.end as number)
+
+        return [key, value]
+    }) : []
+
+    return {
+        node: mapStateToPropsFunction,
+        propsToState,
+    }
+}
+
+const parseObjectProperties = (content: string, expr: ObjectExpression | ObjectPattern) => {
+    return (expr.properties as ObjectProperty[]).map((prop) => {
+        return [
+            content.substring(prop.key.start as number, prop.key.end as number),
+            content.substring(prop.value.start as number, prop.value.end as number),
+        ]
+    })
+}
+
+const findActionCreators = (content: string, ast: Node, actionCreatorsName: string) => {
+    const actionCreatorsDeclaration = findNode<VariableDeclaration>(ast, "VariableDeclaration", (path) => {
+        return (path.node.declarations[0].id as Identifier)?.name === actionCreatorsName
+    })
+    const actions = actionCreatorsDeclaration
+        ? parseObjectProperties(content, actionCreatorsDeclaration.node.declarations[0].init as ObjectExpression).map(([k, _]) => k)
+        : []
+
+    return {
+        node: actionCreatorsDeclaration,
+        actions,
+    }
+}
+
+const findDefaultComponent = (content: string, ast: Node, defaultComponentName: string) => {
+    const defaultComponentFunction = findFunction(ast, defaultComponentName)
+    if (defaultComponentFunction) {
+        const defaultComponentDeclaration = defaultComponentFunction.declaration
+        const defaultComponentParams = defaultComponentFunction.params[0] as ObjectPattern
+        const defaultComponentBody = defaultComponentFunction.body as BlockStatement
+
+        return {
+            defaultComponentDeclaration,
+            defaultComponentParams,
+            defaultComponentBody,
+        }
+    }
+}
+
+const replaceNodeContent = (content: string, node: Node, replacement: string) => {
+    const newContent = content.substring(0, node.start as number) + replacement + content.substring(node.end as number)
+
+    return {
+        ast: parse(newContent),
+        content: newContent
     }
 }
 
