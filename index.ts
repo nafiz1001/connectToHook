@@ -1,4 +1,4 @@
-import fs from "fs"
+import fs from "fs/promises"
 import * as parser from "@babel/parser";
 import traverse_, { NodePath, Scope } from "@babel/traverse";
 import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression, ObjectPattern, BlockStatement } from "@babel/types";
@@ -102,7 +102,7 @@ const parseContent = (content: string) => {
 
     // regions of lines to skip including mapStateProps and actionCreators
     // I don't know which is first, so I sort
-    const skipLines = [mapStateToPropsDeclaration?.node, actionCreatorsDeclaration?.node].filter((x) => x !== undefined).map((x) => x as VariableDeclaration).map((node) => {
+    const skipLines = [mapStateToPropsDeclaration?.node, actionCreatorsDeclaration?.node].filter((x) => x).map((x) => x as VariableDeclaration).map((node) => {
         return [node.start, node.end] as number[]
     }).sort((a, b) => a[0] - b[0])
 
@@ -151,5 +151,18 @@ const parseContent = (content: string) => {
 
 const filePaths = process.argv.slice(2)
 
-const content = fs.readFileSync(filePaths[0]).toString()
-console.log(parseContent(content))
+console.log(filePaths)
+
+const results = filePaths.map(async (filePath) => {
+    const buffer = await fs.readFile(filePath)
+    try {
+	const result = parseContent(buffer.toString())
+	await fs.writeFile(filePath, result)
+	console.log(`${filePath} COMPLETE`)
+    } catch (e) {
+	console.log(`${filePath} FAILED: ${(e as Error).stack}`)
+	throw e
+    }
+})
+
+Promise.allSettled(results)
