@@ -151,18 +151,23 @@ const parseContent = (content: string) => {
 
 const filePaths = process.argv.slice(2)
 
-console.log(filePaths)
+const errors: { filePath: string, error: string }[] = []
 
 const results = filePaths.map(async (filePath) => {
     const buffer = await fs.readFile(filePath)
     try {
         const result = parseContent(buffer.toString())
         await fs.writeFile(filePath, result)
-        console.log(`${filePath} COMPLETE`)
     } catch (e) {
-        console.log(`${filePath} FAILED: ${(e as Error).stack}`)
+        errors.push({ filePath, error: (e as Error).stack ?? "Unknown error" })
         throw e
     }
 })
 
-Promise.allSettled(results)
+Promise.allSettled(results).then(() => {
+    console.log(`${filePaths.length - errors.length}/${filePaths.length} Processed Successfully`)
+    errors.forEach(({ filePath, error }) => {
+        console.log(`${filePath}: ${error}`)
+    })
+})
+
