@@ -204,7 +204,6 @@ const parseContent = (content: string) => {
     }
 
     const {
-        defaultComponentDeclaration,
         defaultComponentParams,
         defaultComponentBody,
     } = findDefaultComponent(content, ast, defaultComponentName);
@@ -221,7 +220,6 @@ const parseContent = (content: string) => {
         return content.replace(action, actionReplacement(action)[0])
     }, content.substring(defaultComponentBody.start as number, defaultComponentBody.end as number));
     ast = parse(content.substring(0, defaultComponentBody.start as number) + newBody + content.substring(defaultComponentBody.end as number));
-
 }
 
 const filePaths = process.argv.slice(2)
