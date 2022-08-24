@@ -139,6 +139,11 @@ const findActionCreators = (content: string, ast: Node, actionCreatorsName: stri
     }
 }
 
+const actionReplacement = (action: string) => {
+    const wrapper = `dispatch${action[0].toUpperCase()}${action.substring(1)}`
+    return [wrapper, `const ${wrapper} = useCallback((...args) => ${action}(...args), [dispatch])`]
+}
+
 const findDefaultComponent = (content: string, ast: Node, defaultComponentName: string) => {
     const defaultComponentFunction = findFunction(ast, defaultComponentName)
 
@@ -211,6 +216,12 @@ const parseContent = (content: string) => {
     }).map(({ value }) => value).join(", ")} }`;
 
     ({ ast, content } = replaceNodeContent(content, defaultComponentParams, paramReplacement));
+
+    let newBody = actions.reduce((content, action) => {
+        return content.replace(action, actionReplacement(action)[0])
+    }, content.substring(defaultComponentBody.start as number, defaultComponentBody.end as number));
+    ast = parse(content.substring(0, defaultComponentBody.start as number) + newBody + content.substring(defaultComponentBody.end as number));
+
 }
 
 const filePaths = process.argv.slice(2)
