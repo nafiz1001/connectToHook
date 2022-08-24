@@ -169,7 +169,7 @@ const replaceNodeContent = (content: string, node: Node, replacement: string) =>
 const parseContent = (content: string) => {
     let ast = parser.parse(content, { sourceType: "module", plugins: ["jsx"] });
     let propsToState: { [_: string]: string } = {};
-    let actions: Set<string> = new Set<string>();
+    let actions: string[] = []
 
     const {
         rightBeforeConnect,
@@ -191,9 +191,7 @@ const parseContent = (content: string) => {
 
     if (actionCreatorsName) {
         let actionCreatorsDeclaration: Node | undefined;
-        let actionsArray: string[] = [];
-        ({ node: actionCreatorsDeclaration, actions: actionsArray } = findActionCreators(content, ast, actionCreatorsName));
-        actions = new Set(actionsArray)
+        ({ node: actionCreatorsDeclaration, actions } = findActionCreators(content, ast, actionCreatorsName));
 
         if (actionCreatorsDeclaration) {
             ({ ast, content } = replaceNodeContent(content, actionCreatorsDeclaration, ""));
@@ -209,7 +207,7 @@ const parseContent = (content: string) => {
     const paramReplacement = `{ ${(defaultComponentParams.properties as ObjectProperty[]).map((prop) => {
         return { key: (prop.key as Identifier).name, value: prop.value }
     }).filter(({ key }) => {
-        return !actions.has(key)
+        return !actions.find((action) => action === key)
     }).map(({ value }) => value).join(", ")} }`;
 
     ({ ast, content } = replaceNodeContent(content, defaultComponentParams, paramReplacement));
