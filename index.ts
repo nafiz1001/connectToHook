@@ -76,9 +76,13 @@ const throwUndefined = <T>(o: T | undefined) => {
 const findConnect = (ast: Node) => {
     const exportDefaultDeclaration = throwUndefined(findNode<ExportDefaultDeclaration>(ast, "ExportDefaultDeclaration"))
 
-    const connect = throwUndefined(findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
+    const connect = findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return (path.node.callee as Identifier)?.name === "connect"
-    }, ...exportDefaultDeclaration.rest)).node
+    }, ...exportDefaultDeclaration.rest)?.node
+
+    if (!connect) {
+        throw new Error("connect was not found")
+    }
 
     const rightBeforeConnect = throwUndefined(findNode<CallExpression>(exportDefaultDeclaration.node, "CallExpression", (path) => {
         return path.node.callee === connect
@@ -87,7 +91,7 @@ const findConnect = (ast: Node) => {
     const defaultComponentName = (rightBeforeConnect.arguments[0] as Identifier)?.name
 
     if (connect.arguments.length > 2) {
-        throw `${connect.arguments.length} > 2`
+        throw new Error(`${connect.arguments.length} > 2`)
     }
 
     const [mapStateToPropsNode, actionCreatorsNode] = connect.arguments as (Identifier | undefined)[]
@@ -141,7 +145,7 @@ const findActionCreators = (content: string, ast: Node, actionCreatorsName: stri
 
 const actionReplacement = (action: string) => {
     const wrapper = `dispatch${action[0].toUpperCase()}${action.substring(1)}`
-    return [wrapper, `const ${wrapper} = useCallback((...args) => ${action}(...args), [dispatch])`]
+    return wrapper
 }
 
 const findDefaultComponent = (content: string, ast: Node, defaultComponentName: string) => {
@@ -203,10 +207,7 @@ const parseContent = (content: string) => {
         }
     }
 
-    const {
-        defaultComponentParams,
-        defaultComponentBody,
-    } = findDefaultComponent(content, ast, defaultComponentName);
+    const { defaultComponentParams } = findDefaultComponent(content, ast, defaultComponentName);
 
     const paramReplacement = `{ ${(defaultComponentParams.properties as ObjectProperty[]).map((prop) => {
         return { key: (prop.key as Identifier).name, value: prop.value }
@@ -216,10 +217,33 @@ const parseContent = (content: string) => {
 
     ({ ast, content } = replaceNodeContent(content, defaultComponentParams, paramReplacement));
 
+    let { defaultComponentBody } = findDefaultComponent(content, ast, defaultComponentName);
+
     let newBody = actions.reduce((content, action) => {
-        return content.replace(action, actionReplacement(action)[0])
+        return content.replace(action, actionReplacement(action));
     }, content.substring(defaultComponentBody.start as number, defaultComponentBody.end as number));
     ast = parse(content.substring(0, defaultComponentBody.start as number) + newBody + content.substring(defaultComponentBody.end as number));
+
+    ({ defaultComponentBody } = findDefaultComponent(content, ast, defaultComponentName));
+    if (Array.isArray((defaultComponentBody as BlockStatement).body)) {
+        let blockState = defaultComponentBody as BlockStatement;
+        const start = blockState.body[0].start as number;
+        const indentation = " ".repeat(blockState.body[0].loc?.start.column as number);
+        const newContent = [
+            ...Object.entries(propsToState).map(([k, v]) => {
+                return `${indentation}const ${k} = useSelector((state) => ${v})`;
+            }),
+            ...actions.map((action) => {
+                const replacement = actionReplacement(action);
+                return `const ${replacement} = useCallback((...args) => ${action}(...args), [dispatch])`;
+            })
+        ].join("\n");
+        content = content.substring(0, start) + newContent + "\n" + content.substring(start);
+    } else {
+        throw new Error("the function body is an expression");
+    }
+
+    return content;
 }
 
 const filePaths = process.argv.slice(2)
