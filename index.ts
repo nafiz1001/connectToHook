@@ -168,7 +168,7 @@ const findDefaultComponent = (content: string, ast: Node, defaultComponentName: 
 
 const replaceNodeContent = (content: string, node: Node, replacement: string) => {
     const newContent = content.substring(0, node.start as number) + replacement + content.substring(node.end as number)
-
+    // console.log(newContent);
     return {
         ast: parse(newContent),
         content: newContent
@@ -209,17 +209,17 @@ const parseContent = (content: string) => {
 
     const { defaultComponentParams } = findDefaultComponent(content, ast, defaultComponentName);
 
-    const paramReplacement = `{ ${(defaultComponentParams.properties as ObjectProperty[]).map((prop) => {
+    const paramReplacement: string = `{ ${(defaultComponentParams.properties as ObjectProperty[]).map((prop) => {
         return { key: (prop.key as Identifier).name, value: prop.value }
     }).filter(({ key }) => {
-        return !actions.find((action) => action === key)
-    }).map(({ value }) => value).join(", ")} }`;
+        return !actions.find((action) => action === key) && !(key in propsToState)
+    }).map(({ value }) => content.substring(value.start as number, value.end as number)).join(", ")} }`;
 
     ({ ast, content } = replaceNodeContent(content, defaultComponentParams, paramReplacement));
 
     let { defaultComponentBody } = findDefaultComponent(content, ast, defaultComponentName);
 
-    let newBody = actions.reduce((content, action) => {
+    let newBody: string = actions.reduce((content, action) => {
         return content.replace(action, actionReplacement(action));
     }, content.substring(defaultComponentBody.start as number, defaultComponentBody.end as number));
     ast = parse(content.substring(0, defaultComponentBody.start as number) + newBody + content.substring(defaultComponentBody.end as number));
@@ -229,19 +229,22 @@ const parseContent = (content: string) => {
         let blockState = defaultComponentBody as BlockStatement;
         const start = blockState.body[0].start as number;
         const indentation = " ".repeat(blockState.body[0].loc?.start.column as number);
-        const newContent = [
-            ...Object.entries(propsToState).map(([k, v]) => {
-                return `${indentation}const ${k} = useSelector((state) => ${v})`;
+        const newContent: string = [
+            ...Object.entries(propsToState).map(([k, v], i) => {
+                return `${i === 0 ? "" : indentation}const ${k} = useSelector((state) => ${v})`;
             }),
+            `${indentation}const dispatch = useDispatch()`,
             ...actions.map((action) => {
                 const replacement = actionReplacement(action);
-                return `const ${replacement} = useCallback((...args) => ${action}(...args), [dispatch])`;
-            })
+                return `${indentation}const ${replacement} = useCallback((...args) => ${action}(...args), [dispatch])`;
+            }),
         ].join("\n");
-        content = content.substring(0, start) + newContent + "\n" + content.substring(start);
+        content = content.substring(0, start) + newContent + "\n\n" + indentation + content.substring(start);
     } else {
         throw new Error("the function body is an expression");
     }
+
+    content = `import { useDispatch, useSelector } from "react-redux"\n${content}`
 
     return content;
 }
