@@ -1,8 +1,8 @@
-import fs from "fs/promises"
+import * as fs from "fs/promises"
 import * as parser from "@babel/parser";
-import traverse_, { NodePath, Scope } from "@babel/traverse";
+import traverse, { NodePath, Scope } from "@babel/traverse";
 import { CallExpression, Identifier, Node, ExportDefaultDeclaration, VariableDeclaration, ArrowFunctionExpression, ObjectExpression, ObjectProperty, MemberExpression, ObjectPattern, BlockStatement, FunctionDeclaration } from "@babel/types";
-const traverse = (traverse_ as any).default as typeof traverse_;
+// const traverse = (traverse_ as any).default as typeof traverse_;
 
 const parse = (content: string) => parser.parse(content, { sourceType: "module", plugins: ["jsx"] })
 
@@ -222,7 +222,8 @@ const parseContent = (content: string) => {
     let newBody: string = actions.reduce((content, action) => {
         return content.replace(action, actionReplacement(action));
     }, content.substring(defaultComponentBody.start as number, defaultComponentBody.end as number));
-    ast = parse(content.substring(0, defaultComponentBody.start as number) + newBody + content.substring(defaultComponentBody.end as number));
+    content = content.substring(0, defaultComponentBody.start as number) + newBody + content.substring(defaultComponentBody.end as number)
+    ast = parse(content);
 
     ({ defaultComponentBody } = findDefaultComponent(content, ast, defaultComponentName));
     if (Array.isArray((defaultComponentBody as BlockStatement).body)) {
